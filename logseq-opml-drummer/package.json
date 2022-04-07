@@ -1,0 +1,29 @@
+{
+  "name": "logseq-opml-drummer",
+  "version": "0.0.1",
+  "description": "blog from logseq via opml",
+  "main": "dist/index.html",
+  "targets": {
+    "main": false
+  },
+  "default": "dist/index.html",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/phonetonote/logseq-opml-drummer.git"
+  },
+  "author": "scottrblock",
+  "scripts": {
+    "dev": "parcel ./index.html --public-url ./",
+    "build": "parcel build --public-url . --no-source-maps index.html"
+  },
+  "license": "MIT",
+  "logseq": {
+    "id": "_ptn"
+  },
+  "dependencies": {
+    "@logseq/libs": "^0.0.1-alpha.35"
+  },
+  "devDependencies": {
+    "parcel": "^2.0.0-beta.2"
+  }
+}
