@@ -1,6 +1,6 @@
 {
   "name": "logseq-opml-drummer",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "blog from logseq via opml",
   "main": "dist/index.html",
   "targets": {
@@ -18,7 +18,7 @@
   },
   "license": "MIT",
   "logseq": {
-    "id": "_ptn"
+    "id": "logseql-opml-drummer"
   },
   "dependencies": {
     "@logseq/libs": "^0.0.1-alpha.35"
