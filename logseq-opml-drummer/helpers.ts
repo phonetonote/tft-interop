@@ -1,6 +1,7 @@
 import * as daveutils from "daveutils";
 import * as request from "request";
 import * as opml from "opml";
+import { OPML } from "./opml_types";
 
 function getDateString(theDate = new Date()) {
   return new Date(theDate).toUTCString();

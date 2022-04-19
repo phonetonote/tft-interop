@@ -1,5 +1,5 @@
 // #TODO make this more specific
-type OPML = {
+export type OPML = {
   opml: {
     head: { [key: string]: any };
     body: { [key: string]: any };

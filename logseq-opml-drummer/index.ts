@@ -36,28 +36,33 @@ type OPMLResponse = {
 const saveOpmlFile = async (config: {
   [key: string]: string | number | boolean;
 }): Promise<OPMLResponse> => {
-  const journalsFromLogseq = []; // #TODO get journal data from logseq
+  console.log("saveOpmlFile");
 
-  const { err, outline } = { err: { message: "" }, outline: {} }; // helpers.readJournalsIntoOutline(journalsFromLogseq);
+  const journalsFromLogseq = await logseq.DB.q("(between -7d +0d)");
+  // one query per page. iterate over each date and make query
+  // const journalsFromLogseq = await logseq.DB.q("(page [[Apr 17th, 2022]])"); // #TODO get journal data from logseq
 
-  let opmlText = "";
-  if (err) {
-    console.log("saveMyLogSeqOpml: err.message == " + err.message);
-  } else {
-    opmlText = opml.stringify(outline);
-    if (config.opmlJournalFile !== undefined) {
-      // #TODO write opml file using logseq file api
-      // fs.writeFile(config.opmlJournalFile, opmlText, function (err) {
-      //   if (err) {
-      //     console.log("saveMyLogSeqOpml: err.message == " + err.message);
-      //   }
-      // });
-    }
-  }
+  console.log("journalsFromLogseq", journalsFromLogseq);
+  // const { err, outline } = helpers.readJournalsIntoOutline(journalsFromLogseq);
+
+  // let opmlText = "";
+  // if (err) {
+  //   console.log("saveMyLogSeqOpml: err.message == " + err.message);
+  // } else {
+  //   opmlText = opml.stringify(outline);
+  //   if (config.opmlJournalFile !== undefined) {
+  //     // #TODO write opml file using logseq file api
+  //     // fs.writeFile(config.opmlJournalFile, opmlText, function (err) {
+  //     //   if (err) {
+  //     //     console.log("saveMyLogSeqOpml: err.message == " + err.message);
+  //     //   }
+  //     // });
+  //   }
+  // }
 
   return {
-    opmlText: opmlText,
-    err: err,
+    opmlText: "opmlText",
+    err: { message: "" },
   };
 };
 
