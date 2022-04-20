@@ -2,6 +2,7 @@ import "@logseq/libs";
 // import * as daveutils from "daveutils";
 import * as helpers from "./helpers";
 import * as opml from "opml";
+import { OPML } from "./opml_types";
 
 const baseConfig = {
   twScreenName: undefined,
@@ -24,8 +25,10 @@ const baseConfig = {
   urlTwitterServer: "http://drummer.scripting.com/",
   oauth_token: undefined,
   oauth_token_secret: undefined,
+  parentBlogTag: "myBlog",
 };
 
+// TODO this should probably provide response from writing the file with logseq
 type OPMLResponse = {
   opmlText: String;
   err: {
@@ -33,37 +36,46 @@ type OPMLResponse = {
   };
 };
 
-const saveOpmlFile = async (config: {
-  [key: string]: string | number | boolean;
-}): Promise<OPMLResponse> => {
+const saveOpmlFile = async (outline): Promise<OPMLResponse> => {
   console.log("saveOpmlFile");
-
-  const journalsFromLogseq = await logseq.DB.q("(between -7d +0d)");
-  // one query per page. iterate over each date and make query
-  // const journalsFromLogseq = await logseq.DB.q("(page [[Apr 17th, 2022]])"); // #TODO get journal data from logseq
-
-  console.log("journalsFromLogseq", journalsFromLogseq);
-  // const { err, outline } = helpers.readJournalsIntoOutline(journalsFromLogseq);
-
-  // let opmlText = "";
-  // if (err) {
-  //   console.log("saveMyLogSeqOpml: err.message == " + err.message);
-  // } else {
-  //   opmlText = opml.stringify(outline);
-  //   if (config.opmlJournalFile !== undefined) {
-  //     // #TODO write opml file using logseq file api
-  //     // fs.writeFile(config.opmlJournalFile, opmlText, function (err) {
-  //     //   if (err) {
-  //     //     console.log("saveMyLogSeqOpml: err.message == " + err.message);
-  //     //   }
-  //     // });
+  const opmlText = opml.stringify(outline);
+  // #TODO write opml file using logseq file api
+  // fs.writeFile(config.opmlJournalFile, opmlText, function (err) {
+  //   if (err) {
+  //     console.log("saveMyLogSeqOpml: err.message == " + err.message);
   //   }
-  // }
+  // });
 
   return {
-    opmlText: "opmlText",
+    opmlText: opmlText,
     err: { message: "" },
   };
+};
+
+const opmlFromParentPageName = async (
+  parentPageName: string
+): Promise<OPML> => {
+  let outline = helpers.setupOpmlHead(
+    {
+      opml: {
+        head: {},
+        body: {},
+      },
+    },
+    baseConfig
+  );
+
+  const blogPosts = await logseq.DB.q(
+    `(and [[${parentPageName}]] (between -7d +0d))`
+  );
+
+  for (const blogPost of blogPosts) {
+    // TODO this isn't how the data actually is
+    const { logseqTree, journalDate } = blogPost;
+    outline = helpers.addJournalToOutline(outline, logseqTree, journalDate);
+  }
+
+  return outline;
 };
 
 /**
@@ -78,40 +90,45 @@ function main() {
       const userConfig = await logseq.App.getUserConfigs();
       const fullConfig = { ...baseConfig, ...userConfig };
 
-      const { err, opmlText } = await saveOpmlFile(fullConfig);
-      if (err) {
-        console.log("logseqpublish: err.message == " + err.message);
-      } else {
-        console.log("logseqpublish: opmltext.length == " + opmlText.length);
-        const params = {
-          relpath: "blog.opml",
-          type: "text/xml",
-        };
-
-        helpers.serverpost(
-          fullConfig,
-          "publishfile",
-          params,
-          true,
-          opmlText,
-          function (err, data) {
-            if (err) {
-              console.log("publishfile: err.message == " + err.message);
-            } else {
-              helpers.httpReadUrl(
-                "http://drummercms.scripting.com/build?blog=" +
-                  fullConfig.twScreenName,
-                function (err, data) {
-                  if (err) {
-                    console.log("drummerCms: err.message == " + err.message);
-                  } else {
-                    console.log(data);
-                  }
-                }
-              );
-            }
-          }
+      const opmlFromBlocks = opmlFromParentPageName(fullConfig.parentBlogTag);
+      if (fullConfig.opmlJournalFile !== undefined) {
+        const { opmlText, err: opmlResponseErr } = await saveOpmlFile(
+          opmlFromBlocks
         );
+        if (opmlResponseErr.message !== "") {
+          console.log("opmlResponse.err.message == " + opmlResponseErr.message);
+        } else {
+          console.log("logseqpublish: opmltext.length == " + opmlText.length);
+          const params = {
+            relpath: "blog.opml",
+            type: "text/xml",
+          };
+
+          helpers.serverpost(
+            fullConfig,
+            "publishfile",
+            params,
+            true,
+            opmlText,
+            function (err, data) {
+              if (err) {
+                console.log("publishfile: err.message == " + err.message);
+              } else {
+                helpers.httpReadUrl(
+                  "http://drummercms.scripting.com/build?blog=" +
+                    fullConfig.twScreenName,
+                  function (err, data) {
+                    if (err) {
+                      console.log("drummerCms: err.message == " + err.message);
+                    } else {
+                      console.log(data);
+                    }
+                  }
+                );
+              }
+            }
+          );
+        }
       }
     },
   });

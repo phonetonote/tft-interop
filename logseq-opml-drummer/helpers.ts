@@ -7,7 +7,7 @@ function getDateString(theDate = new Date()) {
   return new Date(theDate).toUTCString();
 }
 
-function setupOpmlHead(oldOutline, config) {
+export function setupOpmlHead(oldOutline: OPML, config) {
   const newOutline = { ...oldOutline };
   const now = new Date();
 
@@ -140,7 +140,25 @@ function getSub(parent, theSub) {
   return parent.subs[0];
 }
 
-function addJournalToOutline(outline, mdtext: string, journalDate: Date): OPML {
+const logseqTreeToOutline = (logseqTree, options) => {
+  // TODO recursively build opml from logseqTree
+
+  return {
+    opml: {
+      head: {},
+      body: {
+        subs: [],
+      },
+    },
+  };
+};
+
+// #TODO type for logseqTree
+export function addJournalToOutline(
+  outline,
+  logseqTree,
+  journalDate: Date
+): OPML {
   const year = journalDate.getFullYear();
   const monthname = getMonthName(journalDate);
   const day = journalDate.getDate();
@@ -163,7 +181,7 @@ function addJournalToOutline(outline, mdtext: string, journalDate: Date): OPML {
     name: day,
   });
 
-  let theDayOutline = opml.markdownToOutline(mdtext, {
+  let theDayOutline = logseqTreeToOutline(logseqTree, {
     flAddUnderscores: false,
   });
 
