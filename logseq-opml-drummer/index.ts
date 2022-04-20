@@ -3,6 +3,7 @@ import "@logseq/libs";
 import * as helpers from "./helpers";
 import * as opml from "opml";
 import { OPML } from "./opml_types";
+import { LSPluginBaseInfo } from "@logseq/libs/dist/LSPlugin.user";
 
 const baseConfig = {
   twScreenName: undefined,
@@ -65,14 +66,35 @@ const opmlFromParentPageName = async (
     baseConfig
   );
 
-  const blogPosts = await logseq.DB.q(
-    `(and [[${parentPageName}]] (between -7d +0d))`
-  );
+  // TODO optionally only fetch n days back
+  //  [?p :block/journal? true]
+  //  [?p :block/journal-day ?d]
+  //  [(>= ?d 20220401)] [(<= ?d 20220431)]]
 
-  for (const blogPost of blogPosts) {
-    // TODO this isn't how the data actually is
-    const { logseqTree, journalDate } = blogPost;
-    outline = helpers.addJournalToOutline(outline, logseqTree, journalDate);
+  const blogPosts = await logseq.DB.datascriptQuery(`
+    [:find (pull ?b [*])
+      :where
+        [?b :block/page ?p]
+        [?p :block/journal? true]
+        [?b :block/refs ?rp]
+        [?rp :block/name "myblog"]]
+  `);
+
+  console.log("blogPosts query result", blogPosts);
+
+  for (const blogPostsOnEachPage of blogPosts) {
+    for (const blogPost of blogPostsOnEachPage) {
+      const { id: blogParentId } = blogPost;
+      const blockWithChildren = await logseq.Editor.getBlock(blogParentId, {
+        includeChildren: true,
+      });
+
+      console.log("blockWithChildren", blockWithChildren);
+      // 🔖 BOOKMARK
+      // create add block to opml outline
+
+      // outline = helpers.addJournalToOutline(outline, logseqTree, journalDate);
+    }
   }
 
   return outline;
@@ -82,13 +104,15 @@ const opmlFromParentPageName = async (
  * main entry
  * @param baseInfo
  */
-function main() {
+function main(baseInfo: LSPluginBaseInfo) {
   logseq.provideModel({
     async publishBlog() {
       console.log("hello from logseq-opml-drummer");
       console.log(logseq.FileStorage);
-      const userConfig = await logseq.App.getUserConfigs();
+      const userConfig = baseInfo?.settings;
+      console.log("userConfig", userConfig);
       const fullConfig = { ...baseConfig, ...userConfig };
+      console.log("fullConfig", fullConfig);
 
       const opmlFromBlocks = opmlFromParentPageName(fullConfig.parentBlogTag);
       if (fullConfig.opmlJournalFile !== undefined) {
