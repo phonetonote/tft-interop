@@ -140,15 +140,67 @@ function getSub(parent, theSub) {
   return parent.subs[0];
 }
 
-const logseqTreeToOutline = (logseqTree, options) => {
-  // TODO recursively build opml from logseqTree
+const addSubToParent = (parent, sub) => {
+  if (parent.subs === undefined) {
+    parent.subs = new Array();
+  }
+  for (var i = 0; i < parent.subs.length; i++) {
+    var item = parent.subs[i];
+    if (item.text == sub.text) {
+      //it's already there
+      return item;
+    }
+  }
+  if (sub.subs === undefined) {
+    sub.subs = new Array();
+  }
+  parent.subs.unshift(sub);
+  return parent;
+};
 
+function replace(object, source, target) {
+  // grab the content and children (source key) from the object
+  // but only the children if the length is greater than 0
+  let newObject = (({ content }) => ({ content }))(object);
+  if (Array.isArray(object[source]) && object[source].length > 0) {
+    newObject[source] = object[source];
+  }
+
+  return Object.keys(newObject)
+    .map((k) => {
+      const v = newObject[k];
+      const newK = k === source ? target : k;
+      let newV = v;
+
+      if (v && Array.isArray(v)) {
+        newV = v.map((item) => {
+          return replace(item, source, target);
+        });
+      } else if (
+        v &&
+        typeof v === "object" &&
+        Object.keys(v).includes(source)
+      ) {
+        newV = replace(v, "children", "subs");
+      }
+
+      return { [newK]: newV };
+    })
+    .reduce((acc, cur) => ({ ...acc, ...cur }), {});
+}
+
+// TODO add type to logseqTree and newTree
+const logseqTreeToOutline = (logseqTree): OPML => {
+  console.log("---- logseqTreeToOutline start ----");
+
+  const newTree = replace(logseqTree, "children", "subs");
+
+  console.log("newTree", newTree);
+  console.log("---- logseqTreeToOutline end ----");
   return {
     opml: {
       head: {},
-      body: {
-        subs: [],
-      },
+      body: { ...newTree },
     },
   };
 };
@@ -159,20 +211,27 @@ export function addJournalToOutline(
   logseqTree,
   journalDate: Date
 ): OPML {
-  const year = journalDate.getFullYear();
+  console.log("---- addJournalToOutline start ----");
+  console.log(`addJournalToOutline journalDate: ${journalDate}`);
+  console.log("addJournalToOutline logseqTree", logseqTree);
+  console.log("addJournalToOutline startOutline", outline);
+
+  const year = journalDate.getFullYear().toString();
   const monthname = getMonthName(journalDate);
-  const day = journalDate.getDate();
+  const day = journalDate.getDate().toString();
 
   const monthDate = bumpDate(journalDate);
   const dayDate = bumpDate(monthDate);
   let subDate = bumpDate(dayDate);
 
-  let theMonth = getSub(outline.opml.body, {
+  let theMonth = addSubToParent(outline.opml.body, {
     text: monthname + " " + year,
     type: "calendarMonth",
     created: monthDate.toUTCString(),
     name: monthname.toLowerCase() + year,
   });
+
+  console.log("addJournalToOutline theMonth", theMonth);
 
   let theDay = getSub(theMonth, {
     text: monthname + " " + Number(day),
@@ -181,9 +240,11 @@ export function addJournalToOutline(
     name: day,
   });
 
-  let theDayOutline = logseqTreeToOutline(logseqTree, {
-    flAddUnderscores: false,
-  });
+  console.log("addJournalToOutline theDay", theDay);
+
+  let theDayOutline = logseqTreeToOutline(logseqTree);
+
+  console.log("addJournalToOutline theDayOutline", theDayOutline);
 
   theDay.subs = theDayOutline.opml.body.subs;
   theDay.subs.forEach(function (item) {
@@ -192,14 +253,22 @@ export function addJournalToOutline(
     item.created = subDate.toUTCString();
   });
 
-  // #TODO test that this is correctly concatenating the new journal to the existing outline
-  return {
+  console.log("addjournalToOutline theDay", theDay);
+
+  const endOutline = {
     ...outline,
     opml: {
       ...outline.opml,
       body: theMonth,
     },
   };
+
+  console.log("addjournalToOutline end outline: ", endOutline);
+
+  console.log("---- addJournalToOutline end ----");
+
+  // #TODO test that this is correctly concatenating the new journal to the existing outline
+  return endOutline;
 }
 
 // #TODO - journalsFromLogseq should be a logseq type and have a date

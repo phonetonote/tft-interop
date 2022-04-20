@@ -89,11 +89,21 @@ const opmlFromParentPageName = async (
         includeChildren: true,
       });
 
-      console.log("blockWithChildren", blockWithChildren);
-      // 🔖 BOOKMARK
-      // create add block to opml outline
+      // We are ensured to have a journalDay attribute because the query includes `:block/journal? true`
+      // YYYYMMDD to js date, via https://stackoverflow.com/a/26878012
+      const dateInt = parseInt(blockWithChildren.page["journalDay"]);
 
-      // outline = helpers.addJournalToOutline(outline, logseqTree, journalDate);
+      const blogDate = new Date(
+        dateInt / 10000,
+        (dateInt % 10000) / 100,
+        dateInt % 100
+      );
+
+      outline = helpers.addJournalToOutline(
+        outline,
+        blockWithChildren,
+        blogDate
+      );
     }
   }
 
