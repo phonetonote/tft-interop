@@ -2,6 +2,7 @@ import "@logseq/libs";
 // import * as daveutils from "daveutils";
 import * as helpers from "./helpers";
 import * as opml from "opml";
+import * as dh from "./dateHelpers";
 import { OPML } from "./opml_types";
 import { LSPluginBaseInfo } from "@logseq/libs/dist/LSPlugin.user";
 
@@ -29,7 +30,7 @@ const baseConfig = {
   parentBlogTag: "myBlog",
 };
 
-// TODO this should probably provide response from writing the file with logseq
+// #TODO-TS this should probably provide response from writing the file with logseq
 type OPMLResponse = {
   opmlText: String;
   err: {
@@ -38,7 +39,6 @@ type OPMLResponse = {
 };
 
 const saveOpmlFile = async (outline): Promise<OPMLResponse> => {
-  console.log("saveOpmlFile");
   const opmlText = opml.stringify(outline);
   // #TODO write opml file using logseq file api
   // fs.writeFile(config.opmlJournalFile, opmlText, function (err) {
@@ -66,44 +66,48 @@ const opmlFromParentPageName = async (
     baseConfig
   );
 
-  // TODO optionally only fetch n days back
+  //  #TODO optionally only fetch n days back
   //  [?p :block/journal? true]
   //  [?p :block/journal-day ?d]
   //  [(>= ?d 20220401)] [(<= ?d 20220431)]]
 
-  const blogPosts = await logseq.DB.datascriptQuery(`
+  const blogPostRefs = await logseq.DB.datascriptQuery(`
     [:find (pull ?b [*])
       :where
         [?b :block/page ?p]
         [?p :block/journal? true]
         [?b :block/refs ?rp]
-        [?rp :block/name "myblog"]]
+        [?rp :block/name "${parentPageName}"]]
   `);
 
-  console.log("blogPosts query result", blogPosts);
-
-  for (const blogPostsOnEachPage of blogPosts) {
-    for (const blogPost of blogPostsOnEachPage) {
-      const { id: blogParentId } = blogPost;
-      const blockWithChildren = await logseq.Editor.getBlock(blogParentId, {
+  for (const blogPosts of blogPostRefs) {
+    for (const blogPost of blogPosts) {
+      const blockWithChildren = await logseq.Editor.getBlock(blogPost.id, {
         includeChildren: true,
       });
 
-      // We are ensured to have a journalDay attribute because the query includes `:block/journal? true`
-      // YYYYMMDD to js date, via https://stackoverflow.com/a/26878012
-      const dateInt = parseInt(blockWithChildren.page["journalDay"]);
+      // We are ensured a journalDay attr on page because query includes `:block/journal? true`
+      const monthDate = dh.bumpDate(
+        helpers.logseqDateToDate(blockWithChildren.page["journalDay"])
+      );
+      const dayDate = dh.bumpDate(monthDate);
+      outline = helpers.addMonthToOutline(outline, monthDate);
+      outline = helpers.addDayToOutline(outline, dayDate);
 
-      const blogDate = new Date(
-        dateInt / 10000,
-        (dateInt % 10000) / 100,
-        dateInt % 100
+      // only needed for blog posts with adjacent outermost blocks
+      const sortedChildren = blockWithChildren.children.sort(
+        helpers.sortLogseqBlocks
       );
 
-      outline = helpers.addJournalToOutline(
-        outline,
-        blockWithChildren,
-        blogDate
-      );
+      for (const child of sortedChildren) {
+        const blogPostOutline = helpers.replace(child, "children", "subs");
+
+        outline = helpers.addBlogPostOutlineToOutline(
+          outline,
+          dayDate,
+          blogPostOutline
+        );
+      }
     }
   }
 
@@ -117,53 +121,54 @@ const opmlFromParentPageName = async (
 function main(baseInfo: LSPluginBaseInfo) {
   logseq.provideModel({
     async publishBlog() {
-      console.log("hello from logseq-opml-drummer");
-      console.log(logseq.FileStorage);
       const userConfig = baseInfo?.settings;
-      console.log("userConfig", userConfig);
       const fullConfig = { ...baseConfig, ...userConfig };
+
       console.log("fullConfig", fullConfig);
 
-      const opmlFromBlocks = opmlFromParentPageName(fullConfig.parentBlogTag);
-      if (fullConfig.opmlJournalFile !== undefined) {
-        const { opmlText, err: opmlResponseErr } = await saveOpmlFile(
-          opmlFromBlocks
-        );
-        if (opmlResponseErr.message !== "") {
-          console.log("opmlResponse.err.message == " + opmlResponseErr.message);
-        } else {
-          console.log("logseqpublish: opmltext.length == " + opmlText.length);
-          const params = {
-            relpath: "blog.opml",
-            type: "text/xml",
-          };
+      const opmlFromBlocks = await opmlFromParentPageName(
+        fullConfig.parentBlogTag
+      );
+      console.log(opmlFromBlocks);
+      // if (fullConfig.opmlJournalFile !== undefined) {
+      //   const { opmlText, err: opmlResponseErr } = await saveOpmlFile(
+      //     opmlFromBlocks
+      //   );
+      //   if (opmlResponseErr.message !== "") {
+      //     console.log("opmlResponse.err.message == " + opmlResponseErr.message);
+      //   } else {
+      //     console.log("logseqpublish: opmltext.length == " + opmlText.length);
+      //     const params = {
+      //       relpath: "blog.opml",
+      //       type: "text/xml",
+      //     };
 
-          helpers.serverpost(
-            fullConfig,
-            "publishfile",
-            params,
-            true,
-            opmlText,
-            function (err, data) {
-              if (err) {
-                console.log("publishfile: err.message == " + err.message);
-              } else {
-                helpers.httpReadUrl(
-                  "http://drummercms.scripting.com/build?blog=" +
-                    fullConfig.twScreenName,
-                  function (err, data) {
-                    if (err) {
-                      console.log("drummerCms: err.message == " + err.message);
-                    } else {
-                      console.log(data);
-                    }
-                  }
-                );
-              }
-            }
-          );
-        }
-      }
+      //     helpers.serverpost(
+      //       fullConfig,
+      //       "publishfile",
+      //       params,
+      //       true,
+      //       opmlText,
+      //       function (err, data) {
+      //         if (err) {
+      //           console.log("publishfile: err.message == " + err.message);
+      //         } else {
+      //           helpers.httpReadUrl(
+      //             "http://drummercms.scripting.com/build?blog=" +
+      //               fullConfig.twScreenName,
+      //             function (err, data) {
+      //               if (err) {
+      //                 console.log("drummerCms: err.message == " + err.message);
+      //               } else {
+      //                 console.log(data);
+      //               }
+      //             }
+      //           );
+      //         }
+      //       }
+      //     );
+      //   }
+      // }
     },
   });
 

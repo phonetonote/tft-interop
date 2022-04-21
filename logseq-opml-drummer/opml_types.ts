@@ -1,4 +1,4 @@
-// #TODO make this more specific
+// #TODO-TS make this more specific
 export type OPML = {
   opml: {
     head: { [key: string]: any };
