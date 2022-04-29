@@ -8,10 +8,15 @@ export const sortLogseqBlocks = (a, b) => {
   return (b["left"]["id"] ?? 0) - (a["left"]["id"] ?? 0);
 };
 
-// YYYYMMDD as a string to js date, via https://stackoverflow.com/a/26878012
-export const logseqDateToDate = (logseqDate: string) => {
-  const dateInt = parseInt(logseqDate);
-  return new Date(dateInt / 10000, (dateInt % 10000) / 100, dateInt % 100);
+// YYYYMMDD as a string to js date
+export const logseqDateToDate = (logseqDate: number) => {
+  const dateStr = logseqDate.toString();
+  const year = parseInt(dateStr.substring(0, 4));
+  const month = parseInt(dateStr.substring(4, 6));
+  const day = parseInt(dateStr.substring(6, 8));
+  const newDate = new Date(year, month - 1, day);
+
+  return newDate;
 };
 
 // TODO-TS config should have a type
@@ -43,37 +48,40 @@ export function setupOpmlHead(oldOutline: OPML, config) {
   return newOutline;
 }
 
-export const addMonthToOutline = (outline: OPML, date: Date): OPML => {
+export const addMonthToOutline = (
+  outline: OPML,
+  monthlyDate: Date
+): [OPML, Date] => {
   let newOutline = { ...outline };
 
   if (newOutline.opml.body.subs === undefined) {
     newOutline.opml.body.subs = [];
   }
 
-  const yearlyMonthName = dh.yearlyMonthStringFromDate(date);
+  const yearlyMonthName = dh.yearlyMonthStringFromDate(monthlyDate);
 
   for (let i = 0; i < newOutline.opml.body.subs.length; i++) {
     const sub = newOutline.opml.body.subs[i];
 
     if (sub.text === yearlyMonthName) {
-      return newOutline;
+      return [newOutline, dh.bumpDate(monthlyDate)];
     }
   }
 
   const monthSub = {
     text: yearlyMonthName,
     type: "calendarMonth",
-    created: date.toUTCString(),
-    name: dh.yearlyMonthStringFromDate(date, true),
+    created: monthlyDate.toUTCString(),
+    name: dh.yearlyMonthStringFromDate(monthlyDate, true),
     subs: [],
   };
 
   newOutline.opml.body.subs.unshift(monthSub);
 
-  return newOutline;
+  return [newOutline, dh.bumpDate(monthlyDate)];
 };
 
-export const addDayToOutline = (outline: OPML, dayDate: Date): OPML => {
+export const addDayToOutline = (outline: OPML, dayDate: Date): [OPML, Date] => {
   let newOutline = { ...outline };
   const monthKey = dh.yearlyMonthStringFromDate(dayDate);
   let monthSub = newOutline.opml.body.subs.filter(
@@ -91,7 +99,7 @@ export const addDayToOutline = (outline: OPML, dayDate: Date): OPML => {
     const sub = monthSub.subs[i];
 
     if (sub.text === daySubText) {
-      return newOutline;
+      return [newOutline, dh.bumpDate(dayDate)];
     }
   }
 
@@ -105,20 +113,20 @@ export const addDayToOutline = (outline: OPML, dayDate: Date): OPML => {
 
   monthSub.subs.unshift(daySub);
 
-  return newOutline;
+  return [newOutline, dh.bumpDate(dayDate)];
 };
 
 // TODO-TS blogPostOutline is a type that is not OPML, it's just the text and subs
 // the type is a LogSeq BlockEntity but with `children` replaced with `sub`
 export const addBlogPostOutlineToOutline = (
   outline: OPML,
-  dayDate: Date,
+  blogDate: Date,
   blogPostOutline
-): OPML => {
+): [OPML, Date] => {
   const newOutline = { ...outline };
-  const monthSubText = dh.yearlyMonthStringFromDate(dayDate);
-  const dayDateDayString = `${dayDate.getDate()}`;
-  const daySubText = `${dh.getMonthName(dayDate)} ${dayDateDayString}`;
+  const monthSubText = dh.yearlyMonthStringFromDate(blogDate);
+  const dayDateDayString = `${blogDate.getDate()}`;
+  const daySubText = `${dh.getMonthName(blogDate)} ${dayDateDayString}`;
 
   const monthSub = newOutline.opml.body.subs.filter(
     (sub) => sub.text === monthSubText
@@ -130,10 +138,17 @@ export const addBlogPostOutlineToOutline = (
   }
 
   daySub.subs.unshift(blogPostOutline);
-  return newOutline;
+
+  let subDate = blogDate;
+  daySub.subs.forEach(function (item) {
+    subDate = dh.bumpDate(subDate);
+    item.type = "markdown";
+    item.created = subDate.toUTCString();
+  });
+  return [newOutline, subDate];
 };
 
-export const replace = (object, source, target) => {
+export const replace = (object, source, target, blogDate): [any, Date] => {
   // grab the content and children (source key) from the object
   // but only the children if the length is greater than 0
   let newObject = (({ content }) => ({ content }))(object);
@@ -141,25 +156,35 @@ export const replace = (object, source, target) => {
     newObject[source] = object[source];
   }
 
-  return Object.keys(newObject)
-    .map((k) => {
-      const v = newObject[k];
-      const newK = k === source ? target : k;
-      let newV = v;
+  const bumpedDate = dh.bumpDate(blogDate);
 
-      if (v && Array.isArray(v)) {
-        newV = v.map((item) => {
-          return replace(item, source, target);
-        });
-      } else if (
-        v &&
-        typeof v === "object" &&
-        Object.keys(v).includes(source)
-      ) {
-        newV = replace(v, source, target);
-      }
+  return [
+    Object.keys(newObject)
+      .map((k) => {
+        const v = newObject[k];
+        const newK = k === source ? target : k;
+        let newV = v;
+        let newDateToBump = new Date();
 
-      return { [newK]: newV };
-    })
-    .reduce((acc, cur) => ({ ...acc, ...cur }), {});
+        if (v && Array.isArray(v)) {
+          [[newV, newDateToBump]] = v.map((item) => {
+            return replace(item, source, target, bumpedDate);
+          });
+        } else if (
+          v &&
+          typeof v === "object" &&
+          Object.keys(v).includes(source)
+        ) {
+          [newV, newDateToBump] = replace(v, source, target, bumpedDate);
+        }
+
+        return {
+          [newK]: newV,
+          type: "markdown",
+          created: newDateToBump.toUTCString(),
+        };
+      })
+      .reduce((acc, cur) => ({ ...acc, ...cur }), {}),
+    bumpedDate,
+  ];
 };

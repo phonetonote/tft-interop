@@ -7,9 +7,10 @@ export function getMonthName(d) {
 }
 
 export function bumpDate(theDate) {
-  //every node needs a unique created att
-  theDate.setSeconds(theDate.getSeconds() + 1);
-  return theDate;
+  const newDate = new Date(theDate);
+  //every node needs a unique created at
+  newDate.setSeconds(newDate.getSeconds() + 1);
+  return newDate;
 }
 
 export const yearlyMonthStringFromDate = (

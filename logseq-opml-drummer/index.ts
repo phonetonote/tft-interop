@@ -6,6 +6,7 @@ import * as dh from "./dateHelpers";
 import { OPML } from "./opml_types";
 import { LSPluginBaseInfo } from "@logseq/libs/dist/LSPlugin.user";
 import { LSPluginFileStorage } from "@logseq/libs/dist/modules/LSPlugin.Storage";
+import { serverpost, httpReadUrl } from "./httpHelpers";
 
 const baseConfig = {
   // some defaults
@@ -41,13 +42,11 @@ type OPMLResponse = {
 
 const saveOpmlFile = async (
   outline,
-  fileStorage: LSPluginFileStorage
+  fileStorage: LSPluginFileStorage,
+  journalFile
 ): Promise<OPMLResponse> => {
   const opmlText = opml.stringify(outline);
-  console.log("saveOpmlFile opmlText", opmlText);
-  console.log(fileStorage);
-
-  const fileName = `${baseConfig.opmlJournalFile}`;
+  const fileName = `${journalFile}`;
 
   let errorMessage = "";
 
@@ -92,19 +91,26 @@ const opmlFromParentPageName = async (
         [?rp :block/name "${parentPageName}"]]
   `);
 
+  let currentDate = new Date();
+
   for (const blogPosts of blogPostRefs) {
     for (const blogPost of blogPosts) {
       const blockWithChildren = await logseq.Editor.getBlock(blogPost.id, {
         includeChildren: true,
       });
 
-      // We are ensured a journalDay attr on page because query includes `:block/journal? true`
-      const monthDate = dh.bumpDate(
-        helpers.logseqDateToDate(blockWithChildren.page["journalDay"])
+      const blogDate = helpers.logseqDateToDate(
+        blockWithChildren.page["journalDay"]
       );
-      const dayDate = dh.bumpDate(monthDate);
-      outline = helpers.addMonthToOutline(outline, monthDate);
-      outline = helpers.addDayToOutline(outline, dayDate);
+
+      currentDate = dh.bumpDate(blogDate);
+
+      // We are ensured a journalDay attr on page because query includes `:block/journal? true`
+      // TODO should this be beginning of month?
+      const monthDate = dh.bumpDate(currentDate);
+
+      [outline, currentDate] = helpers.addMonthToOutline(outline, monthDate);
+      [outline, currentDate] = helpers.addDayToOutline(outline, currentDate);
 
       // only needed for blog posts with adjacent outermost blocks
       const sortedChildren = blockWithChildren.children.sort(
@@ -112,13 +118,25 @@ const opmlFromParentPageName = async (
       );
 
       for (const child of sortedChildren) {
-        const blogPostOutline = helpers.replace(child, "children", "subs");
+        currentDate = dh.bumpDate(currentDate);
 
-        outline = helpers.addBlogPostOutlineToOutline(
+        const [blogPostOutline, newBumpedDate] = helpers.replace(
+          child,
+          "children",
+          "subs",
+          currentDate
+        );
+
+        currentDate = dh.bumpDate(newBumpedDate);
+
+        let nextBumpedDate;
+        [outline, nextBumpedDate] = helpers.addBlogPostOutlineToOutline(
           outline,
-          dayDate,
+          currentDate,
           blogPostOutline
         );
+
+        currentDate = dh.bumpDate(nextBumpedDate);
       }
     }
   }
@@ -136,55 +154,50 @@ function main(baseInfo: LSPluginBaseInfo) {
       const userConfig = baseInfo?.settings;
       const fullConfig = { ...baseConfig, ...userConfig };
 
-      console.log("fullConfig", fullConfig);
-
       const opmlFromBlocks = await opmlFromParentPageName(
         fullConfig.parentBlogTag
       );
-      console.log(opmlFromBlocks);
-      console.log(fullConfig.saveOpmlFile);
+
       if (fullConfig.saveOpmlFile) {
         const { opmlText, err: opmlResponseErr } = await saveOpmlFile(
           opmlFromBlocks,
-          logseq.FileStorage
+          logseq.FileStorage,
+          fullConfig.opmlJournalFile
         );
 
-        console.log("opmlText", opmlText);
-        console.log("opmlResponseErr", opmlResponseErr);
+        if (opmlResponseErr.message !== "") {
+          console.log("opmlResponse.err.message == " + opmlResponseErr.message);
+        } else {
+          const params = {
+            relpath: "blog.opml",
+            type: "text/xml",
+          };
 
-        //   if (opmlResponseErr.message !== "") {
-        //     console.log("opmlResponse.err.message == " + opmlResponseErr.message);
-        //   } else {
-        //     console.log("logseqpublish: opmltext.length == " + opmlText.length);
-        //     const params = {
-        //       relpath: "blog.opml",
-        //       type: "text/xml",
-        //     };
-        //     helpers.serverpost(
-        //       fullConfig,
-        //       "publishfile",
-        //       params,
-        //       true,
-        //       opmlText,
-        //       function (err, data) {
-        //         if (err) {
-        //           console.log("publishfile: err.message == " + err.message);
-        //         } else {
-        //           helpers.httpReadUrl(
-        //             "http://drummercms.scripting.com/build?blog=" +
-        //               fullConfig.twScreenName,
-        //             function (err, data) {
-        //               if (err) {
-        //                 console.log("drummerCms: err.message == " + err.message);
-        //               } else {
-        //                 console.log(data);
-        //               }
-        //             }
-        //           );
-        //         }
-        //       }
-        //     );
-        //   }
+          serverpost(
+            fullConfig,
+            "publishfile",
+            params,
+            true,
+            opmlText,
+            function (err, data) {
+              if (err) {
+                console.log("publishfile: err.message == " + err.message);
+              } else {
+                httpReadUrl(
+                  "http://drummercms.scripting.com/build?blog=" +
+                    fullConfig.twScreenName,
+                  function (err, data) {
+                    if (err) {
+                      console.log("drummerCms: err.message == " + err.message);
+                    } else {
+                      console.log(data);
+                    }
+                  }
+                );
+              }
+            }
+          );
+        }
       }
     },
   });
