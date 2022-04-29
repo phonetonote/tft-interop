@@ -5,13 +5,14 @@ import * as opml from "opml";
 import * as dh from "./dateHelpers";
 import { OPML } from "./opml_types";
 import { LSPluginBaseInfo } from "@logseq/libs/dist/LSPlugin.user";
+import { LSPluginFileStorage } from "@logseq/libs/dist/modules/LSPlugin.Storage";
 
 const baseConfig = {
+  // some defaults
+  saveOpmlFile: true,
+  opmlJournalFile: "logseq-blog.opml",
+
   twScreenName: undefined,
-
-  logSeqJournalFolder: undefined,
-  opmlJournalFile: undefined,
-
   blogTitle: undefined,
   blogDescription: undefined,
   blogWhenCreated: undefined,
@@ -38,19 +39,30 @@ type OPMLResponse = {
   };
 };
 
-const saveOpmlFile = async (outline): Promise<OPMLResponse> => {
+const saveOpmlFile = async (
+  outline,
+  fileStorage: LSPluginFileStorage
+): Promise<OPMLResponse> => {
   const opmlText = opml.stringify(outline);
-  // #TODO write opml file using logseq file api
-  // fs.writeFile(config.opmlJournalFile, opmlText, function (err) {
-  //   if (err) {
-  //     console.log("saveMyLogSeqOpml: err.message == " + err.message);
-  //   }
-  // });
+  console.log("saveOpmlFile opmlText", opmlText);
+  console.log(fileStorage);
 
-  return {
-    opmlText: opmlText,
-    err: { message: "" },
-  };
+  const fileName = `${baseConfig.opmlJournalFile}`;
+
+  let errorMessage = "";
+
+  try {
+    await fileStorage.setItem(fileName, opmlText);
+  } catch {
+    errorMessage += "Error saving file";
+  } finally {
+    return {
+      opmlText,
+      err: {
+        message: errorMessage,
+      },
+    };
+  }
 };
 
 const opmlFromParentPageName = async (
@@ -130,45 +142,50 @@ function main(baseInfo: LSPluginBaseInfo) {
         fullConfig.parentBlogTag
       );
       console.log(opmlFromBlocks);
-      // if (fullConfig.opmlJournalFile !== undefined) {
-      //   const { opmlText, err: opmlResponseErr } = await saveOpmlFile(
-      //     opmlFromBlocks
-      //   );
-      //   if (opmlResponseErr.message !== "") {
-      //     console.log("opmlResponse.err.message == " + opmlResponseErr.message);
-      //   } else {
-      //     console.log("logseqpublish: opmltext.length == " + opmlText.length);
-      //     const params = {
-      //       relpath: "blog.opml",
-      //       type: "text/xml",
-      //     };
+      console.log(fullConfig.saveOpmlFile);
+      if (fullConfig.saveOpmlFile) {
+        const { opmlText, err: opmlResponseErr } = await saveOpmlFile(
+          opmlFromBlocks,
+          logseq.FileStorage
+        );
 
-      //     helpers.serverpost(
-      //       fullConfig,
-      //       "publishfile",
-      //       params,
-      //       true,
-      //       opmlText,
-      //       function (err, data) {
-      //         if (err) {
-      //           console.log("publishfile: err.message == " + err.message);
-      //         } else {
-      //           helpers.httpReadUrl(
-      //             "http://drummercms.scripting.com/build?blog=" +
-      //               fullConfig.twScreenName,
-      //             function (err, data) {
-      //               if (err) {
-      //                 console.log("drummerCms: err.message == " + err.message);
-      //               } else {
-      //                 console.log(data);
-      //               }
-      //             }
-      //           );
-      //         }
-      //       }
-      //     );
-      //   }
-      // }
+        console.log("opmlText", opmlText);
+        console.log("opmlResponseErr", opmlResponseErr);
+
+        //   if (opmlResponseErr.message !== "") {
+        //     console.log("opmlResponse.err.message == " + opmlResponseErr.message);
+        //   } else {
+        //     console.log("logseqpublish: opmltext.length == " + opmlText.length);
+        //     const params = {
+        //       relpath: "blog.opml",
+        //       type: "text/xml",
+        //     };
+        //     helpers.serverpost(
+        //       fullConfig,
+        //       "publishfile",
+        //       params,
+        //       true,
+        //       opmlText,
+        //       function (err, data) {
+        //         if (err) {
+        //           console.log("publishfile: err.message == " + err.message);
+        //         } else {
+        //           helpers.httpReadUrl(
+        //             "http://drummercms.scripting.com/build?blog=" +
+        //               fullConfig.twScreenName,
+        //             function (err, data) {
+        //               if (err) {
+        //                 console.log("drummerCms: err.message == " + err.message);
+        //               } else {
+        //                 console.log(data);
+        //               }
+        //             }
+        //           );
+        //         }
+        //       }
+        //     );
+        //   }
+      }
     },
   });
 

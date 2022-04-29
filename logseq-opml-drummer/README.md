@@ -20,7 +20,8 @@ sample config to put into logseq package config
   "oauth_token": "TODO_MAKE_DRUMMER_OAUTH_TOKEN",
   "oauth_token_secret": "TODO_MAKE_DRUMMER_OAUTH_TOKEN_SECRET",
   "disabled": false,
-  "parentBlogTag":  "myblog"
+  "parentBlogTag":  "myblog",
+  "saveOpmlFile": true
 }
 ```
 
