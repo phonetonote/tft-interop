@@ -65,8 +65,10 @@ const saveOpmlFile = async (
 };
 
 const opmlFromParentPageName = async (
-  parentPageName: string
+  parentPageName: string,
+  userConfig: { [key: string]: any } = { ...baseConfig }
 ): Promise<OPML> => {
+  // TODO this should be userConfig, not baseConfig
   let outline = helpers.setupOpmlHead(
     {
       opml: {
@@ -74,7 +76,7 @@ const opmlFromParentPageName = async (
         body: {},
       },
     },
-    baseConfig
+    userConfig
   );
 
   //  #TODO optionally only fetch n days back
@@ -154,8 +156,13 @@ function main(baseInfo: LSPluginBaseInfo) {
       const userConfig = baseInfo?.settings;
       const fullConfig = { ...baseConfig, ...userConfig };
 
+      console.log("baseConfig", baseConfig);
+      console.log("userConfig", userConfig);
+      console.log("fullConfig", fullConfig);
+
       const opmlFromBlocks = await opmlFromParentPageName(
-        fullConfig.parentBlogTag
+        fullConfig.parentBlogTag,
+        fullConfig
       );
 
       if (fullConfig.saveOpmlFile) {
