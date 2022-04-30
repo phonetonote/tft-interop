@@ -151,7 +151,7 @@ export const addBlogPostOutlineToOutline = (
 export const replace = (object, source, target, blogDate): [any, Date] => {
   // grab the content and children (source key) from the object
   // but only the children if the length is greater than 0
-  let newObject = (({ content }) => ({ content }))(object);
+  let newObject = (({ content }) => ({ text: content }))(object);
   if (Array.isArray(object[source]) && object[source].length > 0) {
     newObject[source] = object[source];
   }
@@ -166,16 +166,21 @@ export const replace = (object, source, target, blogDate): [any, Date] => {
         let newV = v;
         let newDateToBump = new Date();
 
-        if (v && Array.isArray(v)) {
-          [[newV, newDateToBump]] = v.map((item) => {
+        if (v && Array.isArray(v) && v.length > 0) {
+          const valuesAndDates = v.map((item) => {
             return replace(item, source, target, bumpedDate);
           });
+
+          newV = valuesAndDates.map(([item, _]) => item);
+          newDateToBump = valuesAndDates.map(([_, date]) => date)[
+            valuesAndDates.length - 1
+          ];
         } else if (
           v &&
           typeof v === "object" &&
           Object.keys(v).includes(source)
         ) {
-          [newV, newDateToBump] = replace(v, source, target, bumpedDate);
+          return replace(v, source, target, bumpedDate);
         }
 
         return {

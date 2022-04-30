@@ -168,6 +168,7 @@ function main(baseInfo: LSPluginBaseInfo) {
         if (opmlResponseErr.message !== "") {
           console.log("opmlResponse.err.message == " + opmlResponseErr.message);
         } else {
+          // TODO unclear if `blog.opml` is supposed to be hard coded, but I think it is
           const params = {
             relpath: "blog.opml",
             type: "text/xml",
