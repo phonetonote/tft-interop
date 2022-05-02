@@ -25,6 +25,6 @@ sample config to put into logseq package config
 }
 ```
 
-note this currently requires a `parentBlogTag` to which to pull blog posts from. later versions might support not having a tag and pulling in all blocks from journal pages.
+note this currently requires a `parentBlogTag` to pull blog posts from. later versions might support not having a tag and pulling in all blocks from journal pages.
 
 please see [drummer readme](https://github.com/scripting/myLogseqBlog/blob/main/README.md) for directions on getting your oauth token and secret out of drummer to put into your config above.
